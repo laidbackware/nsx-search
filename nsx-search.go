@@ -14,60 +14,76 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// NSX-T 3.0 supported search params
-var managerResourceTypes = []string{"AdvertisementConfig", "AdvertiseRuleList", "BGPCommunityList", "BgpConfig", "BgpNeighbor",
-	"BridgeEndpointProfile", "BridgeHighAvailabilityClusterProfile", "certificate_ca", "certificate_self_signed", "certificate_signed",
-	"ClusterNodeConfig", "ComputeCollection", "ComputeManager", "crl", "DhcpIpPool", "DhcpProfile", "DhcpRelayProfile", "DhcpRelayService",
-	"DirectoryAdDomain", "DirectoryGroup", "DirectoryLdapServer", "DiscoveredNode", "DnsForwarder", "EdgeCluster", "EdgeHighAvailabilityProfile",
-	"EdgeNode", "ExcludeList", "ExtraConfigHostSwitchProfile", "FirewallRule", "FirewallSection", "GiConfigDashboardInfo", "GiServiceProfile",
-	"HostHealthAggregateStatus", "HostNode", "IDSSignatureDetail", "IpBlock", "IpDiscoverySwitchingProfile", "IpfixCollectorConfig", "IpfixDfwConfig",
-	"IpfixObsPointConfig", "IpPool", "IPPrefixList", "IPSecVPNLocalEndpoint", "IPSecVPNPeerEndpoint", "IPSecVPNService", "IPSecVPNTunnelProfile",
-	"IPSet", "L2VpnService", "L2VpnSession", "LbClientSslProfile", "LbCookiePersistenceProfile", "LbFastTcpProfile", "LbFastUdpProfile",
-	"LbGenericPersistenceProfile", "LbHttpMonitor", "LbHttpProfile", "LbHttpsMonitor", "LbIcmpMonitor", "LbPassiveMonitor", "LbPool",
-	"LbServerSslProfile", "LbService", "LbSourceIpPersistenceProfile", "LbTcpMonitor", "LbUdpMonitor", "LbVirtualServer", "LldpHostSwitchProfile",
-	"LogicalDhcpServer", "LogicalPort", "LogicalRouter", "LogicalRouterCentralizedServicePort", "LogicalRouterDownLinkPort", "LogicalRouterIPTunnelPort",
-	"LogicalRouterLinkPortOnTIER0", "LogicalRouterLinkPortOnTIER1", "LogicalRouterUpLinkPort", "LogicalSwitch", "MacManagementSwitchingProfile",
-	"MACSet", "MetadataProxy", "NatRule", "NiocProfile", "NSGroup", "NSProfile", "NSService", "NSServiceGroup", "PolicyBasedIPSecVPNSession",
-	"PortMirroringSwitchingProfile", "PrincipalIdentity", "QosSwitchingProfile", "RedistributionConfig", "RedistributionRuleList",
-	"RouteBasedIPSecVPNSession", "RouteMap", "RoutingConfig", "ServiceDefinition", "ServiceInsertionRule", "ServiceInsertionSection",
-	"ServiceInsertionServiceProfile", "ServiceProfileNSGroups", "SIExcludeList", "SpoofGuardSwitchingProfile", "StaticHopBfdPeer", "StaticRoute",
-	"SwitchSecuritySwitchingProfile", "TransportNode", "TransportZone", "UplinkHostSwitchProfile", "VendorTemplate", "VirtualMachine", "VirtualNetworkInterface",
-	"VmHealthAggregateStatus", "VniPool"}
-
-// NSX-T 3.0 supported search params
-var policyResourceTypes = []string{"ALGTypeServiceEntry", "ALGTypeServiceEntry", "BfdConfiguration", "BgpNeighborConfig", "BgpRoutingConfig",
-	"BridgeEndpointProfile", "certificate_ca", "certificate_self_signed", "certificate_signed", "ClusterNodeConfig", "CommunityList", "ComputeManager",
-	"crl", "DfwFirewallConfiguration", "DhcpServerConfig", "DnsSecurityProfile", "DOMAIN", "EdgeCluster", "EdgeHighAvailabilityProfile", "EdgeNode",
-	"EndpointPolicy", "EndpointRule", "EnforcementPoint", "EtherTypeServiceEntry", "FloodProtectionProfileBindingMap", "ForwardingPolicy", "ForwardingRule",
-	"GatewayFloodProtectionProfile", "GatewayPolicy", "GatewayQosProfile", "GenericPolicyRealizedResource", "GlobalConfig", "Group", "HostNode", "ICMPTypeServiceEntry",
-	"IdsConfig", "IdsProfile", "IdsRule", "IdsSecurityPolicy", "IdsSettings", "IdsSignature", "IdsSignatureVersion", "IGMPTypeServiceEntry", "IpAddressBlock",
-	"IpAddressPool", "IpAddressPoolBlockSubnet", "IpAddressPoolStaticSubnet", "IPDiscoveryProfile", "IPFIXDFWCollectorProfile", "IPFIXDFWProfile",
-	"IPProtocolServiceEntry", "IPSecVpnDpdProfile", "IPSecVpnIkeProfile", "IPSecVpnLocalEndpoint", "IPSecVpnRule", "IPSecVpnService", "IPSecVpnTunnelInterface",
-	"IPSecVpnTunnelProfile", "Ipv6DadProfile", "Ipv6NdraProfile", "L2BridgeEndpointProfile", "L2VPNService", "L2VPNSession", "L4PortSetServiceEntry",
-	"LBClientSslProfile", "LBCookiePersistenceProfile", "LBFastTcpProfile", "LBFastUdpProfile", "LBGenericPersistenceProfile", "LBHttpMonitorProfile",
-	"LBHttpProfile", "LBHttpsMonitorProfile", "LBIcmpMonitorProfile", "LBPassiveMonitorProfile", "LBPool", "LBServerSslProfile", "LBService",
-	"LBSourceIpPersistenceProfile", "LBTcpMonitorProfile", "LBUdpMonitorProfile", "LBVirtualServer", "LocaleServices", "MacDiscoveryProfile", "MetadataProxyConfig",
-	"PolicyBasedIPSecVpnSession", "PolicyContextProfile", "PolicyDnsForwarder", "PolicyDnsForwarderZone", "PolicyDraft", "PolicyEdgeCluster", "PolicyEdgeNode",
-	"PolicyExcludeList", "PolicyFirewallSessionTimerProfile", "PolicyIgmpConfig", "PolicyMulticastConfig", "PolicyNat", "PolicyNatRule", "PolicyPimConfig",
-	"PolicyServiceChain", "PolicyServiceProfile", "PolicyTransportZone", "PrefixList", "RealizedVirtualMachine", "RedirectionPolicy", "RedirectionRule",
-	"RouteBasedIPSecVpnSession", "Rule", "SecurityPolicy", "Segment", "SegmentPort", "SegmentSecurityProfile", "Service", "ServiceReference"}
-
 var out io.Writer = os.Stdout
-var hostName *string
+var hostName string
 var userName *string
 var password *string
-var endpoint_base string
 
-func search(objectType string, objectName string) (string, int) {
-	base_url := "https://" + *hostName + endpoint_base
-	full_url := base_url + "/search/query?query=resource_type:" + objectType
-	if objectName != "" {
-		full_url = full_url + url.QueryEscape(" AND display_name:"+objectName)
+func getAPIResouces() map[string][]string {
+	var apiResources = map[string][]string{
+		"manager": {"AdvertisementConfig", "AdvertiseRuleList", "BGPCommunityList", "BgpConfig", "BgpNeighbor",
+			"BridgeEndpointProfile", "BridgeHighAvailabilityClusterProfile", "certificate_ca", "certificate_self_signed",
+			"certificate_signed", "ClusterNodeConfig", "ComputeCollection", "ComputeManager", "crl", "DhcpIpPool",
+			"DhcpProfile", "DhcpRelayProfile", "DhcpRelayService", "DirectoryAdDomain", "DirectoryGroup", "DirectoryLdapServer",
+			"DiscoveredNode", "DnsForwarder", "EdgeCluster", "EdgeHighAvailabilityProfile", "EdgeNode", "ExcludeList",
+			"ExtraConfigHostSwitchProfile", "FirewallRule", "FirewallSection", "GiConfigDashboardInfo", "GiServiceProfile",
+			"HostHealthAggregateStatus", "HostNode", "IDSSignatureDetail", "IpBlock", "IpDiscoverySwitchingProfile",
+			"IpfixCollectorConfig", "IpfixDfwConfig", "IpfixObsPointConfig", "IpPool", "IPPrefixList", "IPSecVPNLocalEndpoint",
+			"IPSecVPNPeerEndpoint", "IPSecVPNService", "IPSecVPNTunnelProfile", "IPSet", "L2VpnService", "L2VpnSession",
+			"LbClientSslProfile", "LbCookiePersistenceProfile", "LbFastTcpProfile", "LbFastUdpProfile",
+			"LbGenericPersistenceProfile", "LbHttpMonitor", "LbHttpProfile", "LbHttpsMonitor", "LbIcmpMonitor",
+			"LbPassiveMonitor", "LbPool", "LbServerSslProfile", "LbService", "LbSourceIpPersistenceProfile", "LbTcpMonitor",
+			"LbUdpMonitor", "LbVirtualServer", "LldpHostSwitchProfile", "LogicalDhcpServer", "LogicalPort", "LogicalRouter",
+			"LogicalRouterCentralizedServicePort", "LogicalRouterDownLinkPort", "LogicalRouterIPTunnelPort",
+			"LogicalRouterLinkPortOnTIER0", "LogicalRouterLinkPortOnTIER1", "LogicalRouterUpLinkPort", "LogicalSwitch",
+			"MacManagementSwitchingProfile", "MACSet", "MetadataProxy", "NatRule", "NiocProfile", "NSGroup", "NSProfile",
+			"NSService", "NSServiceGroup", "PolicyBasedIPSecVPNSession", "PortMirroringSwitchingProfile", "PrincipalIdentity",
+			"QosSwitchingProfile", "RedistributionConfig", "RedistributionRuleList", "RouteBasedIPSecVPNSession", "RouteMap",
+			"RoutingConfig", "ServiceDefinition", "ServiceInsertionRule", "ServiceInsertionSection", "ServiceInsertionServiceProfile",
+			"ServiceProfileNSGroups", "SIExcludeList", "SpoofGuardSwitchingProfile", "StaticHopBfdPeer", "StaticRoute",
+			"SwitchSecuritySwitchingProfile", "TransportNode", "TransportZone", "UplinkHostSwitchProfile", "VendorTemplate",
+			"VirtualMachine", "VirtualNetworkInterface", "VmHealthAggregateStatus", "VniPool"},
+
+		"policy": {"ALGTypeServiceEntry", "ALGTypeServiceEntry", "BfdConfiguration", "BgpNeighborConfig", "BgpRoutingConfig",
+			"BridgeEndpointProfile", "certificate_ca", "certificate_self_signed", "certificate_signed", "ClusterNodeConfig",
+			"CommunityList", "ComputeManager", "crl", "DfwFirewallConfiguration", "DhcpServerConfig", "DnsSecurityProfile",
+			"DOMAIN", "EdgeCluster", "EdgeHighAvailabilityProfile", "EdgeNode", "EndpointPolicy", "EndpointRule", "EnforcementPoint",
+			"EtherTypeServiceEntry", "FloodProtectionProfileBindingMap", "ForwardingPolicy", "ForwardingRule",
+			"GatewayFloodProtectionProfile", "GatewayPolicy", "GatewayQosProfile", "GenericPolicyRealizedResource", "GlobalConfig",
+			"Group", "HostNode", "ICMPTypeServiceEntry", "IdsConfig", "IdsProfile", "IdsRule", "IdsSecurityPolicy", "IdsSettings",
+			"IdsSignature", "IdsSignatureVersion", "IGMPTypeServiceEntry", "IpAddressBlock", "IpAddressPool", "IpAddressPoolBlockSubnet",
+			"IpAddressPoolStaticSubnet", "IPDiscoveryProfile", "IPFIXDFWCollectorProfile", "IPFIXDFWProfile", "IPProtocolServiceEntry",
+			"IPSecVpnDpdProfile", "IPSecVpnIkeProfile", "IPSecVpnLocalEndpoint", "IPSecVpnRule", "IPSecVpnService",
+			"IPSecVpnTunnelInterface", "IPSecVpnTunnelProfile", "Ipv6DadProfile", "Ipv6NdraProfile", "L2BridgeEndpointProfile",
+			"L2VPNService", "L2VPNSession", "L4PortSetServiceEntry", "LBClientSslProfile", "LBCookiePersistenceProfile",
+			"LBFastTcpProfile", "LBFastUdpProfile", "LBGenericPersistenceProfile", "LBHttpMonitorProfile", "LBHttpProfile",
+			"LBHttpsMonitorProfile", "LBIcmpMonitorProfile", "LBPassiveMonitorProfile", "LBPool", "LBServerSslProfile", "LBService",
+			"LBSourceIpPersistenceProfile", "LBTcpMonitorProfile", "LBUdpMonitorProfile", "LBVirtualServer", "LocaleServices",
+			"MacDiscoveryProfile", "MetadataProxyConfig", "PolicyBasedIPSecVpnSession", "PolicyContextProfile", "PolicyDnsForwarder",
+			"PolicyDnsForwarderZone", "PolicyDraft", "PolicyEdgeCluster", "PolicyEdgeNode", "PolicyExcludeList",
+			"PolicyFirewallSessionTimerProfile", "PolicyIgmpConfig", "PolicyMulticastConfig", "PolicyNat", "PolicyNatRule",
+			"PolicyPimConfig", "PolicyServiceChain", "PolicyServiceProfile", "PolicyTransportZone", "PrefixList",
+			"RealizedVirtualMachine", "RedirectionPolicy", "RedirectionRule", "RouteBasedIPSecVpnSession", "Rule", "SecurityPolicy",
+			"Segment", "SegmentPort", "SegmentSecurityProfile", "Service", "ServiceReference", "ServiceSegment",
+			"SessionTimerProfileBindingMap", "Site", "SpoofGuardProfile", "StandaloneHostIdfwConfiguration", "StaticRouteBfdPeer",
+			"StaticRoutes", "Tier0", "Tier0Interface", "Tier0RouteMap", "Tier1", "Tier1Interface", "TlsCertificate", "TlsCrl",
+			"TraceflowConfig", "TransportNode", "TransportZone", "UplinkHostSwitchProfile", "VniPoolConfig",
+		},
 	}
+	return apiResources
+}
 
-	fmt.Fprintln(out, full_url)
+func generateURL(objectType string, objectName string, endpointBase string) string {
+	baseURL := "https://" + hostName + endpointBase
+	fullURL := baseURL + "/search/query?query=resource_type:" + objectType
+	if objectName != "" {
+		fullURL = fullURL + url.QueryEscape(" AND display_name:"+objectName)
+	}
+	return fullURL
+}
 
-	req, err := http.NewRequest("GET", full_url, nil)
+func search(fullURL string) (string, error) {
+	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,23 +102,13 @@ func search(objectType string, objectName string) (string, int) {
 		}
 		bodyString := string(bodyBytes)
 		fmt.Fprintln(out, bodyString)
-		return bodyString, 6
+		return bodyString, nil
 	} else if resp.StatusCode == http.StatusForbidden {
 		fmt.Fprintln(out, "Access forbidden. Please check the username or password")
 	} else {
 		fmt.Fprintln(out, resp.StatusCode)
 	}
-
-	return "", 6
-}
-
-func checkObjectIsValid(objectType string, resourceTypes []string, apiType string) {
-	_, found := Find(resourceTypes, objectType)
-	if !found {
-		fmt.Fprintln(out, "Object type "+objectType+" is not supported with the "+apiType+" API. Please use one of the following:")
-		fmt.Fprintln(out, strings.Join(resourceTypes, ", "))
-		os.Exit(1)
-	}
+	return "", err
 }
 
 func Find(slice []string, val string) (int, bool) {
@@ -133,7 +139,7 @@ func main() {
 	// flag.BoolVar(&insecureMode, "insecure", true, "Skip TLS verification. Default true.")
 	// flag.StringVar(&objectType, "object-type", "", "API object to query")
 
-	hostName = commandLine.StringP("endpoint", "e", "", "NSX-T Manager Hostname")
+	hostName = *commandLine.StringP("endpoint", "e", "", "NSX-T Manager Hostname")
 	userName = commandLine.StringP("username", "u", "", "NSX-T Manager username")
 	password = commandLine.StringP("password", "p", "", "NSX-T Manager password")
 	managerAPI := commandLine.BoolP("manager-api", "m", false, "User manager API. Defaults to false, which uses the policy API")
@@ -143,26 +149,33 @@ func main() {
 
 	commandLine.Parse(os.Args[1:])
 
-	if *hostName == "" || *userName == "" || *password == "" || *objectType == "" {
+	apiType := "policy"
+	endpointBase := "/policy/api/v1"
+	if *managerAPI {
+		apiType = "manager"
+		endpointBase = "/api/v1"
+	}
+
+	if hostName == "" || *userName == "" || *password == "" || *objectType == "" {
 		fmt.Fprintln(out, "Incorrect usage")
+		fmt.Fprintln(out, hostName)
 		commandLine.PrintDefaults()
 		os.Exit(1)
 	}
-
 	if *insecureMode {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	if *managerAPI {
-		endpoint_base = "/api/v1"
-		checkObjectIsValid(*objectType, managerResourceTypes, "manager")
-	} else {
-		endpoint_base = "/policy/api/v1"
-		checkObjectIsValid(*objectType, policyResourceTypes, "policy")
+	apiResources := getAPIResouces()
+	_, found := Find(apiResources[apiType], *objectType)
+	if !found {
+		fmt.Fprintln(out, "Object type "+*objectType+" is not supported with the "+apiType+" API. Please use one of the following:")
+		fmt.Fprintln(out, strings.Join(apiResources[apiType], ", "))
+		os.Exit(1)
 	}
 
-	fmt.Fprintln(out, *hostName, *userName, *password, *insecureMode, *objectType, *objectName, *managerAPI)
-
-	_, _ = search(*objectType, *objectName)
+	fullURL := generateURL(*objectType, *objectName, endpointBase)
+	fmt.Fprintln(out, fullURL)
+	_, _ = search(fullURL)
 
 }
