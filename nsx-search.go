@@ -11,13 +11,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	flag "github.com/spf13/pflag"
 )
 
 var out io.Writer = os.Stdout
-var hostName string
+
 var userName *string
 var password *string
+
+const version = "0.1"
 
 func getAPIResouces() map[string][]string {
 	var apiResources = map[string][]string{
@@ -73,7 +76,7 @@ func getAPIResouces() map[string][]string {
 	return apiResources
 }
 
-func generateURL(objectType string, objectName string, endpointBase string) string {
+func generateURL(objectType string, objectName string, endpointBase string, hostName string) string {
 	baseURL := "https://" + hostName + endpointBase
 	fullURL := baseURL + "/search/query?query=resource_type:" + objectType
 	if objectName != "" {
@@ -111,7 +114,7 @@ func search(fullURL string) (string, error) {
 	return "", err
 }
 
-func Find(slice []string, val string) (int, bool) {
+func find(slice []string, val string) (int, bool) {
 	for i, item := range slice {
 		if item == val {
 			return i, true
@@ -120,34 +123,55 @@ func Find(slice []string, val string) (int, bool) {
 	return -1, false
 }
 
+func generateObjectsTable(apiResources map[string][]string) [][]string {
+	var data [][]string
+	for i, policyResource := range apiResources["policy"] {
+		managerResource := ""
+		if i < len(apiResources["manager"]) {
+			managerResource = apiResources["manager"][i]
+		}
+		data = append(data, []string{policyResource, managerResource})
+
+	}
+	return data
+}
+
 func main() {
-
-	// var hostName string
-	// var userName string
-	// var password string
-	// var insecureMode bool
-	// var objectType string
-
 	commandLine := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	// commandLine.StringVar(&optionMode, "mode", "add",
-	// 	"Choose 'add' or 'multiply'")
-	// commandLine.PrintDefaults()
-	// commandLine.Parse(os.Args[1:])
-	// flag.StringVar(&hostName, "hostname", "", "NSX-T Manager Hostname")
-	// flag.StringVar(&userName, "username", "", "NSX-T Manager username")
-	// flag.StringVar(&password, "password", "", "NSX-T Manager password")
-	// flag.BoolVar(&insecureMode, "insecure", true, "Skip TLS verification. Default true.")
-	// flag.StringVar(&objectType, "object-type", "", "API object to query")
 
-	hostName = *commandLine.StringP("endpoint", "e", "", "NSX-T Manager Hostname")
+	hostName := commandLine.StringP("endpoint", "e", "", "NSX-T Manager Hostname")
 	userName = commandLine.StringP("username", "u", "", "NSX-T Manager username")
 	password = commandLine.StringP("password", "p", "", "NSX-T Manager password")
 	managerAPI := commandLine.BoolP("manager-api", "m", false, "User manager API. Defaults to false, which uses the policy API")
 	insecureMode := commandLine.BoolP("insecure", "k", false, "Skip TLS verification. Default true.")
 	objectType := commandLine.StringP("object-type", "o", "", "Type of object to query")
 	objectName := commandLine.StringP("object-name", "n", "", "Optional. Name of object to query. Without a name, all objects will be returned, up to 1000.")
+	help := commandLine.BoolP("help", "h", false, "Show help")
+	availableAPIs := commandLine.BoolP("available-objects", "a", false, "Show available objects to search")
 
 	commandLine.Parse(os.Args[1:])
+
+	if *help {
+		fmt.Fprintln(out, "NSX Search", version, "lets you query the NSX-T API by name\n")
+		fmt.Fprintln(out, "Usage to query a Logical Router called 'tier0-gw' on the manager API:")
+		fmt.Fprintln(out, "  nsx-search -e <nsx ip/fqdn> -k -u <username> -p <password> -o LogicalRouter -n tier0-gw -m\n")
+		fmt.Fprintln(out, "Syntax:")
+		commandLine.PrintDefaults()
+		os.Exit(0)
+	}
+
+	apiResources := getAPIResouces()
+	if *availableAPIs {
+		fmt.Fprintln(out, "Available objects which can be searched")
+		data := generateObjectsTable(apiResources)
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"Policy API Objects", "Manager API Objects"})
+		for _, v := range data {
+			table.Append(v)
+		}
+		table.Render()
+		os.Exit(0)
+	}
 
 	apiType := "policy"
 	endpointBase := "/policy/api/v1"
@@ -156,9 +180,9 @@ func main() {
 		endpointBase = "/api/v1"
 	}
 
-	if hostName == "" || *userName == "" || *password == "" || *objectType == "" {
+	if *hostName == "" || *userName == "" || *password == "" || *objectType == "" {
 		fmt.Fprintln(out, "Incorrect usage")
-		fmt.Fprintln(out, hostName)
+		fmt.Fprintln(out, "NSX Search", version)
 		commandLine.PrintDefaults()
 		os.Exit(1)
 	}
@@ -166,16 +190,14 @@ func main() {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	apiResources := getAPIResouces()
-	_, found := Find(apiResources[apiType], *objectType)
+	_, found := find(apiResources[apiType], *objectType)
 	if !found {
 		fmt.Fprintln(out, "Object type "+*objectType+" is not supported with the "+apiType+" API. Please use one of the following:")
 		fmt.Fprintln(out, strings.Join(apiResources[apiType], ", "))
 		os.Exit(1)
 	}
 
-	fullURL := generateURL(*objectType, *objectName, endpointBase)
-	fmt.Fprintln(out, fullURL)
+	fullURL := generateURL(*objectType, *objectName, endpointBase, *hostName)
 	_, _ = search(fullURL)
 
 }
